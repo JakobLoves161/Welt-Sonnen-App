@@ -42,7 +42,8 @@ def load_country_data():
     }
 
     for feature in geojson["features"]:
-        name = feature["properties"]["ADMIN"]
+name = feature["properties"]["name"]
+
         feature["properties"]["sunshine"] = sunshine.get(name, 5.0)
 
     return geojson
