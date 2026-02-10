@@ -2,7 +2,4 @@ streamlit
 pydeck
 pandas
 numpy
-datetime
-math
-json
 requests
