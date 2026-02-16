@@ -10,6 +10,11 @@ st.set_page_config(page_title="3D Weltkugel – Sonne & Tag/Nacht", layout="wide
 st.title("🌍 Interaktive 3D-Weltkugel")
 st.subheader("Tag / Nacht & durchschnittliche Sonnenstunden pro Land")
 
+st.markdown("""
+Diese App zeigt eine Simulation von **Tag und Nacht auf der Erde**
+sowie **durchschnittliche Sonnenstunden** pro Land.
+""")
+
 # -------------------------------
 # DATEN LADEN
 # -------------------------------
@@ -41,7 +46,7 @@ def load_country_data():
 countries = load_country_data()
 
 # -------------------------------
-# SONNENSTAND
+# SONNENSTAND BERECHNUNG
 # -------------------------------
 
 def subsolar_point(time_utc):
@@ -62,22 +67,43 @@ def is_day(lat, lng, sun_lat, sun_lng):
     )
     return cos_angle > 0
 
+# -------------------------------
+# ROBUSTE MITTELPUNKT-BERECHNUNG
+# -------------------------------
+
 def get_center(feature):
     coords = feature["geometry"]["coordinates"]
     lats = []
     lngs = []
 
-    def extract_coords(c):
-        if isinstance(c[0], float):  # einzelner Punkt
+    def extract(c):
+        if isinstance(c, (int, float)):
+            return
+
+        if (
+            isinstance(c, list)
+            and len(c) == 2
+            and isinstance(c[0], (int, float))
+            and isinstance(c[1], (int, float))
+        ):
             lngs.append(c[0])
             lats.append(c[1])
-        else:
-            for sub in c:
-                extract_coords(sub)
+            return
 
-    extract_coords(coords)
+        if isinstance(c, list):
+            for item in c:
+                extract(item)
+
+    extract(coords)
+
+    if len(lats) == 0:
+        return 0, 0
 
     return np.mean(lats), np.mean(lngs)
+
+# -------------------------------
+# AKTUELLE SONNENPOSITION
+# -------------------------------
 
 now = datetime.now(timezone.utc)
 sun_lat, sun_lng = subsolar_point(now)
@@ -88,7 +114,6 @@ sun_lat, sun_lng = subsolar_point(now)
 
 for feature in countries["features"]:
     sunshine = feature["properties"]["sunshine"]
-
     lat, lng = get_center(feature)
     day = is_day(lat, lng, sun_lat, sun_lng)
 
@@ -135,5 +160,16 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
+
+# -------------------------------
+# LEGENDE
+# -------------------------------
+
+st.markdown("""
+### 🎨 Legende
+- **Gelb / Orange:** Tag  
+- **Blau:** Nacht  
+- **Kräftige Farben:** viele Sonnenstunden  
+""")
 
 st.caption("Zeitpunkt (UTC): " + now.strftime("%Y-%m-%d %H:%M"))
