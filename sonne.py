@@ -1,6 +1,5 @@
 import streamlit as st
 import pydeck as pdk
-import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
 import math
@@ -10,12 +9,6 @@ st.set_page_config(page_title="3D Weltkugel – Sonne & Tag/Nacht", layout="wide
 
 st.title("🌍 Interaktive 3D-Weltkugel")
 st.subheader("Tag / Nacht & durchschnittliche Sonnenstunden pro Land")
-
-st.markdown("""
-Diese App zeigt eine realistische Simulation
-von **Tag und Nacht auf der Erde** sowie
-**durchschnittliche Sonnenstunden** pro Land.
-""")
 
 # -------------------------------
 # DATEN LADEN
@@ -69,26 +62,34 @@ def is_day(lat, lng, sun_lat, sun_lng):
     )
     return cos_angle > 0
 
+def get_center(feature):
+    coords = feature["geometry"]["coordinates"]
+    lats = []
+    lngs = []
+
+    def extract_coords(c):
+        if isinstance(c[0], float):  # einzelner Punkt
+            lngs.append(c[0])
+            lats.append(c[1])
+        else:
+            for sub in c:
+                extract_coords(sub)
+
+    extract_coords(coords)
+
+    return np.mean(lats), np.mean(lngs)
+
 now = datetime.now(timezone.utc)
 sun_lat, sun_lng = subsolar_point(now)
 
 # -------------------------------
-# FARBEN BERECHNEN (WICHTIG!)
+# FARBEN BERECHNEN
 # -------------------------------
 
 for feature in countries["features"]:
     sunshine = feature["properties"]["sunshine"]
 
-    # Mittelpunkt des Landes grob berechnen
-    coords = feature["geometry"]["coordinates"]
-
-    try:
-        # Für Polygon
-        lng, lat = coords[0][0][0]
-    except:
-        # Für MultiPolygon
-        lng, lat = coords[0][0][0][0]
-
+    lat, lng = get_center(feature)
     day = is_day(lat, lng, sun_lat, sun_lng)
 
     if day:
@@ -134,16 +135,5 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
-
-# -------------------------------
-# LEGENDE
-# -------------------------------
-
-st.markdown("""
-### 🎨 Legende
-- **Gelb / Orange:** Tag  
-- **Blau:** Nacht  
-- **Kräftige Farben:** viele Sonnenstunden  
-""")
 
 st.caption("Zeitpunkt (UTC): " + now.strftime("%Y-%m-%d %H:%M"))
