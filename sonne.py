@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
 import math
-import json
 import requests
 
 st.set_page_config(page_title="3D Weltkugel – Sonne & Tag/Nacht", layout="wide")
@@ -13,9 +12,9 @@ st.title("🌍 Interaktive 3D-Weltkugel")
 st.subheader("Tag / Nacht & durchschnittliche Sonnenstunden pro Land")
 
 st.markdown("""
-Diese App zeigt eine realistische, physikalisch korrekte Simulation
-von **Tag und Nacht auf der Erde** sowie **durchschnittliche Sonnenstunden**
-für alle Länder.
+Diese App zeigt eine realistische Simulation
+von **Tag und Nacht auf der Erde** sowie
+**durchschnittliche Sonnenstunden** pro Land.
 """)
 
 # -------------------------------
@@ -27,7 +26,6 @@ def load_country_data():
     url = "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson"
     geojson = requests.get(url).json()
 
-    # Durchschnittliche Sonnenstunden pro Tag (Beispielwerte, realistisch)
     sunshine = {
         "Germany": 4.0,
         "Spain": 6.5,
@@ -42,8 +40,7 @@ def load_country_data():
     }
 
     for feature in geojson["features"]:
-name = feature["properties"]["name"]
-
+        name = feature["properties"]["name"]
         feature["properties"]["sunshine"] = sunshine.get(name, 5.0)
 
     return geojson
@@ -51,7 +48,7 @@ name = feature["properties"]["name"]
 countries = load_country_data()
 
 # -------------------------------
-# SONNENSTAND-BERECHNUNG
+# SONNENSTAND
 # -------------------------------
 
 def subsolar_point(time_utc):
@@ -76,18 +73,30 @@ now = datetime.now(timezone.utc)
 sun_lat, sun_lng = subsolar_point(now)
 
 # -------------------------------
-# FARBLOGIK
+# FARBEN BERECHNEN (WICHTIG!)
 # -------------------------------
 
-def country_color(feature):
+for feature in countries["features"]:
     sunshine = feature["properties"]["sunshine"]
-    lat, lng = feature["geometry"]["coordinates"][0][0][0][1], feature["geometry"]["coordinates"][0][0][0][0]
+
+    # Mittelpunkt des Landes grob berechnen
+    coords = feature["geometry"]["coordinates"]
+
+    try:
+        # Für Polygon
+        lng, lat = coords[0][0][0]
+    except:
+        # Für MultiPolygon
+        lng, lat = coords[0][0][0][0]
+
     day = is_day(lat, lng, sun_lat, sun_lng)
 
     if day:
-        return [255, int(200 - sunshine * 10), 50]
+        color = [255, int(200 - sunshine * 10), 50]
     else:
-        return [20, 40, int(150 + sunshine * 5)]
+        color = [20, 40, int(150 + sunshine * 5)]
+
+    feature["properties"]["color"] = color
 
 # -------------------------------
 # PYDECK LAYER
@@ -98,7 +107,7 @@ layer = pdk.Layer(
     data=countries,
     pickable=True,
     filled=True,
-    get_fill_color=country_color,
+    get_fill_color="properties.color",
     get_line_color=[80, 80, 80],
     line_width_min_pixels=0.5,
 )
@@ -107,13 +116,11 @@ view_state = pdk.ViewState(
     latitude=20,
     longitude=0,
     zoom=1.1,
-    bearing=0,
-    pitch=0,
 )
 
 tooltip = {
     "html": """
-    <b>{ADMIN}</b><br/>
+    <b>{name}</b><br/>
     🌞 Sonnenstunden: {sunshine} h/Tag
     """,
     "style": {"backgroundColor": "black", "color": "white"}
@@ -134,12 +141,9 @@ st.pydeck_chart(
 
 st.markdown("""
 ### 🎨 Legende
-- **Gelb / Orange:** Tag
+- **Gelb / Orange:** Tag  
 - **Blau:** Nacht  
-- **Helle Farben:** wenige Sonnenstunden  
 - **Kräftige Farben:** viele Sonnenstunden  
-
-Die Tag-/Nacht-Grenze entspricht dem realen Sonnen-Terminator.
 """)
 
 st.caption("Zeitpunkt (UTC): " + now.strftime("%Y-%m-%d %H:%M"))
